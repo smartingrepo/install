@@ -76,11 +76,15 @@ prompt_user() {
     local default="$2"
     local result
     
+    # Usar /dev/tty para leer input del usuario
+    # Esto es necesario cuando se ejecuta con curl | bash porque stdin está ocupado
     if [ -n "$default" ]; then
-        read -p "$(echo -e "${CYAN}$prompt${NC} [${default}]: ")" result
+        echo -e "${CYAN}$prompt${NC} [${default}]: " >/dev/tty
+        read result </dev/tty
         echo "${result:-$default}"
     else
-        read -p "$(echo -e "${CYAN}$prompt${NC}: ")" result
+        echo -e "${CYAN}$prompt${NC}: " >/dev/tty
+        read result </dev/tty
         echo "$result"
     fi
 }

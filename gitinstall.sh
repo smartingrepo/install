@@ -411,10 +411,41 @@ clone_repository() {
     
     local repo_path="$INSTALL_DIR/$REPO_NAME"
     
-    # Verificar que git esté instalado
+    # Verificar que git esté instalado, si no, instalarlo automáticamente
     if ! command -v git &>/dev/null; then
-        log_error "Git no está instalado. Por favor, instale git primero."
-        exit 1
+        log_warn "Git no está instalado. Instalando automáticamente..."
+        
+        # Detectar el gestor de paquetes e instalar git
+        if command -v apt-get &>/dev/null; then
+            # Debian/Ubuntu
+            apt-get update -qq && apt-get install -y -qq git
+        elif command -v yum &>/dev/null; then
+            # RHEL/CentOS 7
+            yum install -y -q git
+        elif command -v dnf &>/dev/null; then
+            # RHEL/CentOS 8+/Fedora
+            dnf install -y -q git
+        elif command -v zypper &>/dev/null; then
+            # SUSE
+            zypper install -y -n git
+        elif command -v apk &>/dev/null; then
+            # Alpine
+            apk add --no-cache git
+        elif command -v pacman &>/dev/null; then
+            # Arch
+            pacman -S --noconfirm git
+        else
+            log_error "No se pudo detectar el gestor de paquetes. Instale git manualmente."
+            exit 1
+        fi
+        
+        # Verificar que se instaló correctamente
+        if ! command -v git &>/dev/null; then
+            log_error "Error al instalar git"
+            exit 1
+        fi
+        
+        log_success "Git instalado correctamente"
     fi
     
     # Crear directorio de instalación si no existe

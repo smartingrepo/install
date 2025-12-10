@@ -44,6 +44,7 @@ REQUIRED_PARAMS=""
 LOG_DIR=""
 UNINSTALL=false
 REPO_NAME=""
+UPDATE_ONLY=false
 EXTRA_PARAMS=()
 COLLECTED_PARAMS=()
 
@@ -122,6 +123,8 @@ PARÁMETROS OPCIONALES:
   --log-dir <path>        Directorio de logs (default: /var/log)
   --cron-schedule <cron>  Programación cron (si no se indica, se pregunta)
                           Ejemplo: --cron-schedule "0 */6 * * *"
+  --update-only           Configura cron para solo actualizar el repo (sin ejecutar script)
+                          Útil para deployments con Ansible donde el script se ejecuta externamente
   
   --required-params <p>   Lista de parámetros obligatorios separados por coma
                           Ejemplo: --required-params "youtrack-base,youtrack-infra"
@@ -160,6 +163,17 @@ EJEMPLOS:
 
   3. Desinstalación:
      sudo ./gitinstall.sh --uninstall --repo-name inventory
+
+  4. Instalación solo para actualización (útil para Ansible):
+     sudo ./gitinstall.sh \\
+         --ssh-key-b64 "$(cat ~/.ssh/deploy | base64 -w0)" \\
+         --repo-url git@github.com:smarting/inventory.git \\
+         --target-script sysinv.sh \\
+         --key-name deploy \\
+         --install-dir /home/ansible/ansible_sysinv \\
+         --repo-name files \\
+         --cron-schedule "0 3 * * *" \\
+         --update-only
 
 PROGRAMACIÓN CRON (ejemplos para --cron-schedule):
   "*/5 * * * *"       Cada 5 minutos
@@ -235,6 +249,10 @@ parse_arguments() {
                 ;;
             --uninstall)
                 UNINSTALL=true
+                shift
+                ;;
+            --update-only)
+                UPDATE_ONLY=true
                 shift
                 ;;
             --repo-name)
@@ -594,7 +612,18 @@ setup_crontab() {
         cron_params="$cron_params $param"
     done
     
-    local cron_line="$CRON_SCHEDULE $gitup_path ./$TARGET_SCRIPT$cron_params >> $log_file 2>&1"
+    # Construir la línea de cron según el modo
+    local cron_line
+    if $UPDATE_ONLY; then
+        # Modo update-only: solo ejecutar gitup.sh --update-only
+        cron_line="$CRON_SCHEDULE $gitup_path --update-only >> $log_file 2>&1"
+        log_info "Modo --update-only: El cron solo actualizará el repositorio"
+    else
+        # Modo normal: ejecutar gitup.sh con el script target y parámetros
+        cron_line="$CRON_SCHEDULE $gitup_path ./$TARGET_SCRIPT$cron_params >> $log_file 2>&1"
+    fi
+    
+    # Variable cron_line ya fue construida arriba
     local cron_comment="# gitinstall.sh - $REPO_NAME/$TARGET_SCRIPT - $(date '+%Y-%m-%d %H:%M:%S')"
     
     # Obtener crontab actual
@@ -714,9 +743,14 @@ show_summary() {
     echo -e "  Repositorio:    ${CYAN}$repo_path${NC}"
     echo -e "  Script Wrapper: ${CYAN}$repo_path/gitup.sh${NC}"
     echo -e "  Script Target:  ${CYAN}$repo_path/$TARGET_SCRIPT${NC}"
-    echo -e "  Llave SSH:      ${CYAN}$HOME/.ssh/$KEY_NAME${NC}"
+      echo -e "  Llave SSH:      ${CYAN}$HOME/.ssh/$KEY_NAME${NC}"
     echo -e "  Log File:       ${CYAN}$log_file${NC}"
     echo -e "  Programación:   ${CYAN}$CRON_SCHEDULE${NC}"
+    if $UPDATE_ONLY; then
+        echo -e "  Modo Cron:      ${YELLOW}Solo actualización (--update-only)${NC}"
+    else
+        echo -e "  Modo Cron:      ${GREEN}Actualización + Ejecución${NC}"
+    fi
     echo ""
     
     echo -e "${BOLD}Comandos útiles:${NC}"

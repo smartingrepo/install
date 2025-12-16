@@ -489,10 +489,23 @@ clone_repository() {
     log_info "Clonando desde: $REPO_URL"
     log_info "Destino: $repo_path"
     
+    # Configurar SSH explícitamente para el git clone
+    # Esto asegura que se use la llave correcta incluso si el alias SSH no está cargado
+    local key_file="$HOME/.ssh/$KEY_NAME"
+    export GIT_SSH_COMMAND="ssh -i $key_file -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
+    log_info "Usando llave SSH: $key_file"
+    
     if ! git clone "$REPO_URL" "$repo_path" 2>&1; then
         log_error "Error al clonar el repositorio"
+        log_error "Verifique que la llave SSH '$KEY_NAME' tiene acceso al repositorio"
         exit 1
     fi
+    
+    # Configurar core.sshCommand en el repositorio clonado
+    # Esto asegura que futuros comandos git (pull, fetch) usen la llave correcta
+    log_info "Configurando SSH para el repositorio..."
+    git -C "$repo_path" config core.sshCommand "ssh -i $key_file -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+    log_success "Configuración SSH del repositorio completada"
     
     # Dar permisos de ejecución a scripts
     log_info "Estableciendo permisos de ejecución..."

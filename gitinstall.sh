@@ -393,8 +393,9 @@ update_ssh_config() {
     # Alias para el host (para poder tener múltiples llaves para el mismo host)
     local host_alias="${git_host}-${KEY_NAME}"
     
-    # Verificar si ya existe la configuración
-    if [ -f "$ssh_config" ] && grep -q "Host $host_alias" "$ssh_config" 2>/dev/null; then
+    # Verificar si ya existe la configuración (usar patrón exacto con $ para evitar coincidencias parciales)
+    # Por ejemplo, "Host github.com-deploy" NO debe coincidir con "Host github.com-deploy-pve-backup-check"
+    if [ -f "$ssh_config" ] && grep -qE "^Host ${host_alias}$" "$ssh_config" 2>/dev/null; then
         log_success "Configuración SSH para '$host_alias' ya existe"
     else
         # Añadir configuración
